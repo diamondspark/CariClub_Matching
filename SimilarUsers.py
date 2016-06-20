@@ -2,7 +2,7 @@
 import pandas as pd
 import numpy as np
 import Levenshtein as lv
-from sklearn import datasets
+from sklearn import preprocessing
 from fuzzywuzzy import fuzz
 
 #Function Definitions
@@ -11,7 +11,14 @@ def dateTimeDifference(dateTime1,dateTime2):
          for example differnce between 2 last logins
       '''
       return pd.Timestamp(dateTime2)-pd.Timestamp(dateTime1)
-      
+
+def numericalDifference(num1,num2):
+      '''Helper method to calculate difference between 2 numerical categories
+      '''
+      return abs(num1-num2)
+
+def scaledNormalize(val,minimum,range_):
+      return 100*(val-minimum)/range_
 
 def printData(data):
       'Helper method to print data'
@@ -26,16 +33,16 @@ newUser_df = pd.read_csv('new_user.csv')
           #print(users_df.head())
 users_df=users_df.iloc[0:len(users_df),1:len(users_df.columns)]  # Truncates the original dataframe to drop ID column
 
-columns_to_drop=['object','name','password','image','token','bio','ts_deleted']
+columns_to_drop=['Org authorized','Employed by partner']
 
 users_df=users_df.drop(columns_to_drop,axis=1)
+newUser_df=newUser_df.drop(columns_to_drop,axis=1)
 
-
-#List of numerical and categorical categories(columns)
-num_cat=['zip','user_type']
-date_cat=['last_active','last_login','created']
-str_cat=['firstname','lastname','email','address','location','referred_by','title','status']
-
+#List of numerical,date and categorical categories(columns).
+#Make keywords/interest as binart feature.
+num_cat=['zip','Type']
+date_cat=['created','dob','Updated at']
+str_cat=['firstname','lastname','email','Organization','Job function','location','School 1','School 2','School 3','Past Organization1','Role at past organization 1','Past Organization2','Role at past organization 2','Past Organization3','Role at past organization 3','keyword1','keyword2','keyword3','keyword4','keyword5','keyword6']
 #Calculated similarity for each entry in users_df with newUser_df
 #and converted into a numeric dataframe to apply Machine Learning algorithms.
 #Used fuzzywuzzy which is based on calculating Levenshtein distance between Strings.
@@ -46,6 +53,13 @@ for col in users_df.columns:
            users_df[col]=users_df.apply(lambda x:fuzz.ratio(str(x[col]),newUser_df[col].iat[0]),axis=1)
       elif col in num_cat:
             print "This is a numerical category "+col #Debug Note
+            users_df[col]=users_df.apply(lambda x:numericalDifference(x[col],newUser_df[col].iat[0]),axis=1)
+            minimum= users_df[col].min()
+            col_range= users_df[col].max()-users_df[col].min()
+            if col_range==0:
+                  users_df[col]=100
+            else:
+                 users_df[col]=users_df.apply(lambda x:scaledNormalize(x[col],minimum,col_range),axis=1)
       elif col in date_cat:
             print "This is a date category"+col # Debug Note
             users_df[col]=users_df.apply(lambda x:dateTimeDifference(newUser_df[col].iat[0],x[col]),axis=1)
